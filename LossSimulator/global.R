@@ -90,7 +90,7 @@ emdat_data_yearly <-
 emdat_data_losses$origin <- 'EM_DAT'
 
 # Combine data
-country_data <- emdat_data_occ
+country_data <- emdat_data_losses
 # Rename columns
 names(country_data) <-
   c('id', 'country', 'year', 'peril', 'affected', 'damage', 'origin')

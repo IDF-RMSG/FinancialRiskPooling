@@ -89,7 +89,7 @@ get_aic_mle <- function(dat, updateProgress = NULL, data_type = "Historical", ye
 
     if (is.function(updateProgress)) {
       set.seed(501)
-      updateProgress(detail = paste0("Calculating distribution fit for ",peril_name," please wait."),value = i/length(present_perils), scale = length(present_perils))
+      updateProgress(detail = paste0("Calculating distribution fit for ",peril_name,", please wait."),value = i/length(present_perils), scale = length(present_perils))
     }
 
     sub_dat <- dat[dat$peril == peril_name,]

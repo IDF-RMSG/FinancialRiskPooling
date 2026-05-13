@@ -276,6 +276,49 @@ server <- function(input, output, session) {
   # Reactive tab data
   tab_data <- reactiveValues(data = tab_dict)
 
+  # Build a country -> ISO3A lookup from EM-DAT-style event IDs.
+  country_iso_lookup <-
+    country_data %>%
+    dplyr::filter(!is.na(.data$id)) %>%
+    dplyr::transmute(
+      country = as.character(.data$country),
+      iso3a = toupper(sub(".*-([A-Za-z]{3})$", "\\1", as.character(.data$id)))
+    ) %>%
+    dplyr::filter(grepl("^[A-Z]{3}$", .data$iso3a)) %>%
+    dplyr::distinct(.data$country, .data$iso3a)
+
+  resolve_download_iso3a <- reactive({
+    country_name <-
+      if (!is.null(input$data_type) && identical(input$data_type, "Manual Input")) {
+        uploaded_country <- tryCatch(upload_name(), error = function(e) NA_character_)
+        if (length(uploaded_country) > 0) as.character(uploaded_country[[1]]) else NA_character_
+      } else if (!is.null(input$country)) {
+        as.character(input$country)
+      } else {
+        NA_character_
+      }
+
+    iso3a <-
+      country_iso_lookup %>%
+      dplyr::filter(.data$country == country_name) %>%
+      dplyr::pull(.data$iso3a) %>%
+      .[1]
+
+    if (length(iso3a) == 0 || is.na(iso3a) || !grepl("^[A-Z]{3}$", iso3a)) {
+      "UNK"
+    } else {
+      iso3a
+    }
+  })
+
+  build_out_filename_occ <- function() {
+    paste0("LossSim_", resolve_download_iso3a(), "_", format(Sys.Date(), "%Y%m%d"), "_occ.csv")
+  }
+
+  build_out_filename <- function() {
+    paste0("LossSim_", resolve_download_iso3a(), "_", format(Sys.Date(), "%Y%m%d"), "_agg.csv")
+  }
+
   # Download handler for peril data upload template
   output$peril_template_download <-
     downloadHandler(
@@ -292,10 +335,11 @@ server <- function(input, output, session) {
       )
 
   # Download all underlying data for tool handler
-  # TODO: Dynamic file name so it downloads with country / date reference.
   output$allDataBtn <-
     downloadHandler(
-      filename = "LossSimulator_Output.csv",
+      filename = function() {
+        build_out_filename_occ()
+      },
       content = function(file) {
         write.csv(get_sims_export(), file, row.names = FALSE)
       },
@@ -304,7 +348,9 @@ server <- function(input, output, session) {
 
   output$allDataAggBtn <-
     downloadHandler(
-      filename = "LossSimulator_AggOutput.csv",
+      filename = function() {
+        build_out_filename_agg()
+      },
       content = function(file) {
         write.csv(get_sims_export_agg(), file, row.names = FALSE)
       },
@@ -2627,30 +2673,69 @@ server <- function(input, output, session) {
 
   })
 
+
+  # Create aggregated export with each peril in separate column, one row per event year
   get_sims_export_agg <- reactive({
-    get_sims_export() %>%
-      dplyr::group_by(
-        `Event Year`,
-        Country,
-        Peril
+    country_select <-
+      if (input$data_type == 'Manual Input') {upload_name()} else {input$country}
+
+    # Step 1: Rename columns to match export format and add Country
+    out <- ran_simulations()$Event %>%
+      dplyr::rename(
+        "Event Year" = "year",
+        "Peril"      = "key",
+        "Loss (USD)" = "value"
       ) %>%
-      dplyr::summarise(
-        `Loss (USD)` = sum(`Loss (USD)`),
-        .groups = "drop"
-      ) %>%
-      dplyr::mutate(
-        Peril = factor(Peril, levels = str_perils)
-      ) %>%
+      dplyr::mutate(Country = country_select)
+
+    # Step 2: Sum Loss (USD) where Event Year, Country, and Peril match
+    out <- out %>%
+      dplyr::group_by(`Event Year`, Country, Peril) %>%
+      dplyr::summarise(`Loss (USD)` = sum(`Loss (USD)`), .groups = "drop")
+
+    # Step 3: Pivot wider so each peril becomes its own column
+    out <- out %>%
       tidyr::pivot_wider(
         names_from = Peril,
         values_from = `Loss (USD)`,
         values_fill = 0,
         names_expand = TRUE,
         names_glue = "{Peril} Loss (USD)"
-      ) %>%
+      )
+
+    # Step 4: Add Loss Type label
+    out <- out %>%
+      dplyr::mutate(`Loss Type` = "Aggregate")
+
+    # Step 5: Ensure all peril columns exist; fill missing ones with zeros
+    required_peril_cols <- c(
+      "Drought Loss (USD)",
+      "Earthquake Loss (USD)",
+      "Flood Loss (USD)",
+      "Cyclone Loss (USD)"
+    )
+
+    missing_peril_cols <- setdiff(required_peril_cols, names(out))
+    if (length(missing_peril_cols) > 0) {
+      for (col_name in missing_peril_cols) {
+        out[[col_name]] <- 0
+      }
+    }
+
+    # Step 6: Ensure Event Year is complete from 1 to 15000
+    out <- out %>%
+      tidyr::complete(`Event Year` = 1:15000) %>%
       dplyr::mutate(
-        `Loss Type` = "Aggregate"
-      ) %>%
+        Country = dplyr::coalesce(Country, country_select),
+        `Loss Type` = dplyr::coalesce(`Loss Type`, "Aggregate")
+      )
+
+    for (col_name in required_peril_cols) {
+      out[[col_name]] <- dplyr::coalesce(out[[col_name]], 0)
+    }
+
+    # Step 7: Order columns and sort by year
+    out <- out %>%
       dplyr::select(
         `Event Year`,
         Country,
@@ -2659,7 +2744,10 @@ server <- function(input, output, session) {
         `Flood Loss (USD)`,
         `Cyclone Loss (USD)`,
         `Loss Type`
-      )
+      ) %>%
+      dplyr::arrange(`Event Year`)
+
+    out
   })
 
   # Run function to generate simulation exhibit
