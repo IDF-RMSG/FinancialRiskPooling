@@ -21,3 +21,9 @@ Updating and Deploying:
 Push future changes to `Develop` branch for testing and review. Run the app locally in RStudio to test the changes.
 When confirmed changes perform well and have been reviewed, push to `main`. The published version of the app should come from `main` branch.
 All branches require Pull Requests before merging.
+To deploy online, use the 'Publish' button in RStudio.
+Select the account (currently "idf-rmsg") and app name "DisasterRiskPooling" to deploy.
+
+Common deployment errors:
+- RStudio shows 'app successfully deployed' but online it states: 'An error has occurred. The application failed to start. exit status 1'. The reason for this is often a mismatch in required and installed packages or versions. Investigate the log at https://www.shinyapps.io/admin/#/application/.../logs, which may state similar to "Error: package or namespace load failed for ‘ggplot2’ in loadNamespace; namespace ‘scales’ 1.3.0 is being loaded, but >= 1.4.0 is required; Execution halted; Shiny application exiting ..." whihc tells you the package error to resolve.
+

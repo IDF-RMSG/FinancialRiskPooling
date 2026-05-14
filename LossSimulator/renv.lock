@@ -1,4 +1,5 @@
 {
+  "Version": 1,
   "R": {
     "Version": "4.5.0",
     "Repositories": [
@@ -6083,5 +6084,8 @@
       "Repository": "CRAN",
       "Encoding": "UTF-8"
     }
+  },
+  "renv": {
+    "Version": "1.1.5"
   }
 }

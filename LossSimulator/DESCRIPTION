@@ -27,7 +27,6 @@ Imports:
 	htmltools,
 	MASS,
 	qpcR,
-	reshape2,
 	optimx,
 	fitdistrplus,
 	actuar,

@@ -119,8 +119,11 @@ quant_that <- function(dat_sim,
                         `Highest historical annual loss` = max(dat$value),
                         `Most recent annual loss` = dat$value[nrow(dat)])
 
-  # melt the sub_data frame to get value and variable
-  sub_dat <- reshape2::melt(sub_dat)
+  # Convert to long format without reshape2 to avoid extra deployment dependency.
+  sub_dat <- tidyr::pivot_longer(sub_dat,
+                                 cols = dplyr::everything(),
+                                 names_to = "variable",
+                                 values_to = "value")
 
   if (!is.null(combined_ci) & !any(is.na(combined_ci))) {
     number_of_quantiles <- length(combined_ci$average)

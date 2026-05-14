@@ -315,7 +315,7 @@ server <- function(input, output, session) {
     paste0("LossSim_", resolve_download_iso3a(), "_", format(Sys.Date(), "%Y%m%d"), "_occ.csv")
   }
 
-  build_out_filename <- function() {
+  build_out_filename_agg <- function() {
     paste0("LossSim_", resolve_download_iso3a(), "_", format(Sys.Date(), "%Y%m%d"), "_agg.csv")
   }
 
